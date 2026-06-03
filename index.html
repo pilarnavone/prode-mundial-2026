@@ -117,6 +117,7 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
 }
 .pos-badge.p1 { background: var(--accent); border-color: var(--accent); color: #000; }
 .pos-badge.p2 { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+.pos-badge.p3 { background: var(--green); border-color: var(--green); color: #000; }
 .pos-badge.px { background: rgba(239,68,68,0.12); border-color: var(--red); color: var(--red); }
 .pos-hint { font-size: 0.65rem; color: var(--muted); min-width: 48px; text-align: right; }
 
@@ -318,9 +319,14 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
     <div class="legend">
       <div class="legend-item"><div class="dot" style="background:var(--accent)"></div>1° Clasifica</div>
       <div class="legend-item"><div class="dot" style="background:var(--accent2)"></div>2° Clasifica</div>
+      <div class="legend-item"><div class="dot" style="background:var(--green)"></div>3° Puede pasar</div>
       <div class="legend-item"><div class="dot" style="background:var(--red)"></div>Eliminado</div>
     </div>
-    <div class="info-box">Elegí <b>1°</b> y <b>2°</b> en cada grupo. <b>2pts</b> si acertás posición exacta · <b>1pt</b> si acertás que clasifica.</div>
+    <div class="info-box">Elegí <b>1°</b> y <b>2°</b> en cada grupo. <b>2pts</b> si acertás posición exacta · <b>1pt</b> si acertás que clasifica. Podés elegir hasta <b>8 terceros</b> que creés que van a clasificar (+1pt cada uno).</div>
+    <div id="thirdCounter" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:0.82rem;color:var(--muted2);">Terceros elegidos:</span>
+      <span id="thirdCounterText" style="font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:1px;color:var(--accent);">0 / 8</span>
+    </div>
     <div id="groupsContainer"></div>
     <button class="btn btn-green" onclick="saveGroupPrediction()">☁️ GUARDAR EN LA NUBE</button>
   </div>
@@ -616,7 +622,8 @@ function renderPredict() {
     const pl = (window._players[window._currentPlayer])||{};
     groupPred = {};
     Object.keys(GROUPS_DATA).forEach(g => {
-      groupPred[g] = pl.groups&&pl.groups[g] ? {...pl.groups[g]} : {first:-1,second:-1};
+      groupPred[g] = pl.groups&&pl.groups[g] ? {...pl.groups[g]} : {first:-1,second:-1,third:-1};
+      if(groupPred[g].third===undefined) groupPred[g].third=-1;
     });
     renderGroupsPrediction();
   } else {
@@ -631,22 +638,38 @@ function renderPredict() {
   }
 }
 
+function countThirds() {
+  return Object.values(groupPred).filter(gp=>gp.third>=0).length;
+}
+
 function renderGroupsPrediction() {
+  const thirds = countThirds();
+  const counterEl = document.getElementById('thirdCounterText');
+  if(counterEl) {
+    counterEl.textContent = thirds + ' / 8';
+    counterEl.style.color = thirds>=8 ? 'var(--red)' : thirds>=6 ? 'var(--accent)' : 'var(--green)';
+  }
+
   document.getElementById('groupsContainer').innerHTML = Object.keys(GROUPS_DATA).map(g => {
     const teams=GROUPS_DATA[g], gp=groupPred[g];
     const done=gp.first>=0&&gp.second>=0;
+    const isThird = gp.third>=0;
     return `<div class="card">
       <div class="card-header">
         <span class="card-label">GRUPO ${g}</span>
         <span class="card-status ${done?'ok':'pending'}">${done?'✓ Listo':'Pendiente'}</span>
       </div>
       ${teams.map((team,i)=>{
-        const isF=gp.first===i,isS=gp.second===i,elim=done&&!isF&&!isS;
+        const isF=gp.first===i, isS=gp.second===i, isT=gp.third===i;
+        const elim=done&&!isF&&!isS&&!isT&&gp.third>=0 || done&&!isF&&!isS&&gp.third<0;
+        const bc=isF?'p1':isS?'p2':isT?'p3':elim?'px':'';
+        const bt=isF?'1°':isS?'2°':isT?'3°':elim?'✗':'?';
+        const hint=isF?'Clasifica':isS?'Clasifica':isT?'Puede pasar':elim?'Eliminado':'';
         return `<div class="team-row" onclick="toggleGroupPos('${g}',${i})">
           <span class="team-flag">${flag(team)}</span>
           <span class="team-name">${tname(team)}</span>
-          <div class="pos-badge ${isF?'p1':isS?'p2':elim?'px':''}">${isF?'1°':isS?'2°':elim?'✗':'?'}</div>
-          <span class="pos-hint">${isF?'Clasifica':isS?'Clasifica':elim?'Eliminado':''}</span>
+          <div class="pos-badge ${bc}">${bt}</div>
+          <span class="pos-hint">${hint}</span>
         </div>`;
       }).join('')}
     </div>`;
@@ -655,11 +678,22 @@ function renderGroupsPrediction() {
 
 function toggleGroupPos(g,idx) {
   const gp=groupPred[g];
-  if(gp.first===idx)gp.first=-1;
-  else if(gp.second===idx)gp.second=-1;
-  else if(gp.first<0)gp.first=idx;
-  else if(gp.second<0)gp.second=idx;
-  else gp.second=idx;
+  // Si toca el que ya es 1°, 2° o 3°, lo quita
+  if(gp.first===idx){ gp.first=-1; renderGroupsPrediction(); return; }
+  if(gp.second===idx){ gp.second=-1; renderGroupsPrediction(); return; }
+  if(gp.third===idx){ gp.third=-1; renderGroupsPrediction(); return; }
+
+  // Si no tiene 1°, asigna 1°
+  if(gp.first<0){ gp.first=idx; renderGroupsPrediction(); return; }
+  // Si no tiene 2°, asigna 2°
+  if(gp.second<0){ gp.second=idx; renderGroupsPrediction(); return; }
+  // Si no tiene 3° y quedan cupos, asigna 3°
+  if(gp.third<0){
+    if(countThirds()>=8){ showToast('Ya elegiste 8 terceros, el máximo permitido 🚫', true); return; }
+    gp.third=idx; renderGroupsPrediction(); return;
+  }
+  // Si ya tiene 1°, 2° y 3°, reemplaza el 2° (el más común de cambiar)
+  gp.second=idx;
   renderGroupsPrediction();
 }
 
@@ -823,9 +857,12 @@ function calcScores(playerName) {
   let gpts=0;
   Object.keys(GROUPS_DATA).forEach(g=>{
     if(!realG[g]||!pl.groups||!pl.groups[g]) return;
-    const rf=realG[g].first,rs=realG[g].second,pf=pl.groups[g].first,ps=pl.groups[g].second;
+    const rf=realG[g].first,rs=realG[g].second,rt=realG[g].third;
+    const pf=pl.groups[g].first,ps=pl.groups[g].second,pt=pl.groups[g].third;
     if(pf===rf)gpts+=2; else if(pf===rs)gpts+=1;
     if(ps===rs)gpts+=2; else if(ps===rf)gpts+=1;
+    // 1pt por cada tercero acertado
+    if(pt>=0 && rt>=0 && pt===rt) gpts+=1;
   });
   let bpts=0;
   const rounds=[
@@ -910,7 +947,7 @@ let realGroupEdit={};
 function renderAdminGroups(){
   const saved=window._realGroups||{};
   realGroupEdit={};
-  Object.keys(GROUPS_DATA).forEach(g=>{realGroupEdit[g]=saved[g]?{...saved[g]}:{first:-1,second:-1};});
+  Object.keys(GROUPS_DATA).forEach(g=>{realGroupEdit[g]=saved[g]?{...saved[g]}:{first:-1,second:-1,third:-1}; if(realGroupEdit[g].third===undefined)realGroupEdit[g].third=-1;});
   renderAdminGroupsHTML();
 }
 function renderAdminGroupsHTML(){
@@ -919,11 +956,12 @@ function renderAdminGroupsHTML(){
     return `<div class="card" style="margin-bottom:8px;">
       <div class="card-header"><span class="card-label">GRUPO ${g}</span><span class="card-status ${done?'ok':'pending'}">${done?'✓':'Pendiente'}</span></div>
       ${teams.map((team,i)=>{
-        const isF=rg.first===i,isS=rg.second===i,elim=done&&!isF&&!isS;
+        const isF=rg.first===i,isS=rg.second===i,isT=rg.third===i;
+        const elim=!isF&&!isS&&!isT&&(rg.first>=0||rg.second>=0);
         return `<div class="team-row" onclick="adminToggleGroup('${g}',${i})">
           <span class="team-flag">${flag(team)}</span>
           <span class="team-name sm">${tname(team)}</span>
-          <div class="pos-badge ${isF?'p1':isS?'p2':elim?'px':''}">${isF?'1°':isS?'2°':elim?'✗':'?'}</div>
+          <div class="pos-badge ${isF?'p1':isS?'p2':isT?'p3':elim?'px':''}">${isF?'1°':isS?'2°':isT?'3°':elim?'✗':'?'}</div>
         </div>`;
       }).join('')}
     </div>`;
@@ -931,8 +969,13 @@ function renderAdminGroupsHTML(){
 }
 function adminToggleGroup(g,idx){
   const rg=realGroupEdit[g];
-  if(rg.first===idx)rg.first=-1; else if(rg.second===idx)rg.second=-1;
-  else if(rg.first<0)rg.first=idx; else if(rg.second<0)rg.second=idx; else rg.second=idx;
+  if(rg.first===idx){ rg.first=-1; }
+  else if(rg.second===idx){ rg.second=-1; }
+  else if(rg.third===idx){ rg.third=-1; }
+  else if(rg.first<0){ rg.first=idx; }
+  else if(rg.second<0){ rg.second=idx; }
+  else if(rg.third<0){ rg.third=idx; }
+  else { rg.second=idx; }
   renderAdminGroupsHTML();
 }
 async function saveRealGroups(){
