@@ -487,7 +487,7 @@ showView('home');
 // Live listeners
 onValue(dbRef('participants'), snap => {
   window._participants = snap.val() || [];
-  if (window._currentView === 'home') renderHome();
+  if (window._currentView === 'home') renderParticipantsList();
 });
 onValue(dbRef('players'), snap => {
   window._players = snap.val() || {};
@@ -586,11 +586,9 @@ function setSyncStatus(state, text) {
 }
 
 function restoreSession() {
+  // Recordamos quién era para resaltarlo, pero siempre mostramos el selector
   const saved = localStorage.getItem('mw26_player');
-  if (saved) {
-    window._currentPlayer = saved;
-    updatePlayerBar(saved);
-  }
+  if (saved) window._currentPlayer = saved;
 }
 
 // ── Navigation ───────────────────────────────────────────────
@@ -629,7 +627,7 @@ function selectParticipant(name) {
   document.getElementById('selectedNameDisplay').textContent = name;
   updatePlayerBar(name);
   renderPlayersList();
-  showToast('Bienvenido/a, '+name+' 👋');
+  showToast('¡Bienvenido/a, '+name+'! 👋');
 }
 
 function updatePlayerBar(name) {
@@ -703,11 +701,15 @@ function renderParticipantsList() {
     return;
   }
   noMsg.classList.add('hidden');
+  // Pre-select saved player if none pending
+  if(!_pendingPlayer && window._currentPlayer) _pendingPlayer = window._currentPlayer;
   container.innerHTML = parts.map(name => {
     const selected = _pendingPlayer === name;
+    const isSaved = window._currentPlayer === name;
     return `<div class="player-entry" onclick="pendingSelect('${esc(name)}')" style="${selected?'border-color:var(--accent2);background:rgba(59,130,246,0.08);':''}">
       <div>
         <div class="player-name">👤 ${name}</div>
+        ${isSaved&&!selected ? '<div style="font-size:0.7rem;color:var(--muted2);">Última sesión</div>' : ''}
       </div>
       ${selected ? '<div style="color:var(--accent2);font-size:1.1rem;font-weight:700;">✓</div>' : '<div style="color:var(--muted);font-size:1rem;">○</div>'}
     </div>`;
@@ -757,17 +759,10 @@ function renderPlayersList() {
 }
 
 function renderHome() {
-  const saved = window._currentPlayer;
-  if(saved) {
-    document.getElementById('homeSelector').classList.add('hidden');
-    document.getElementById('homeSelected').classList.remove('hidden');
-    document.getElementById('selectedNameDisplay').textContent = saved;
-    renderPlayersList();
-  } else {
-    document.getElementById('homeSelector').classList.remove('hidden');
-    document.getElementById('homeSelected').classList.add('hidden');
-    renderParticipantsList();
-  }
+  // Siempre mostramos el selector al cargar la vista home
+  document.getElementById('homeSelector').classList.remove('hidden');
+  document.getElementById('homeSelected').classList.add('hidden');
+  renderParticipantsList();
 }
 
 // ── Predict — Groups ─────────────────────────────────────────
