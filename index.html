@@ -291,6 +291,10 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
   <button class="tab" onclick="showView('admin')" id="tabAdmin">🔧 Admin</button>
 </div>
 
+<div id="playerBar" class="hidden" style="background:linear-gradient(90deg,rgba(59,130,246,0.12),transparent);border-bottom:1px solid rgba(59,130,246,0.25);padding:7px 16px;display:flex;align-items:center;gap:8px;">
+  <span style="font-size:0.75rem;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;">Prode de:</span>
+  <span id="playerBarName" style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;color:var(--accent2);"></span>
+</div>
 <main>
 
 <!-- HOME -->
@@ -310,13 +314,21 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;color:var(--accent);" id="selectedNameDisplay"></div>
         <div style="font-size:0.75rem;color:var(--muted2);">Jugando el prode</div>
       </div>
-      <button class="btn btn-sm btn-secondary" onclick="changePlayer()" style="white-space:nowrap;">Cambiar</button>
+
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <div class="sec-title" style="font-size:1.1rem;margin-bottom:0;">TODOS LOS JUGADORES</div>
       <button class="btn btn-sm btn-secondary" onclick="renderHome()">🔄</button>
     </div>
     <div id="playersList"></div>
+    <hr class="divider">
+    <div style="text-align:center;">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">¿Te equivocaste de usuario? Pedile un código de reset al admin</div>
+      <div style="display:flex;gap:8px;">
+        <input class="form-input" id="resetCodeInput" placeholder="Código de reset" maxlength="8" style="text-align:center;letter-spacing:3px;font-size:1rem;">
+        <button class="btn btn-secondary btn-sm" onclick="applyResetCode()" style="white-space:nowrap;width:auto;margin-bottom:0;">Aplicar</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -402,6 +414,9 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
         <button class="btn btn-primary" onclick="addParticipant()">➕ AGREGAR</button>
       </div>
       <div id="adminParticipantsList"></div>
+      <hr class="divider">
+      <div class="sec-sub" style="margin-bottom:8px;">Código de reset — para cuando alguien eligió el usuario equivocado</div>
+      <div id="adminResetCode"></div>
     </div>
 
     <div id="adminGroups">
@@ -486,6 +501,7 @@ onValue(dbRef('config'), snap => {
   window._groupsLocked   = cfg.groupsLocked   || false;
   window._bracketLocked  = cfg.bracketLocked  || false;
   window._adminPin = cfg.adminPin || null;
+  if(cfg.resetCode !== undefined) window._config.resetCode = cfg.resetCode;
   if (cfg.phase !== undefined) {
     window._currentPhase = cfg.phase;
     updatePhaseBanner();
@@ -571,7 +587,10 @@ function setSyncStatus(state, text) {
 
 function restoreSession() {
   const saved = localStorage.getItem('mw26_player');
-  if (saved) window._currentPlayer = saved;
+  if (saved) {
+    window._currentPlayer = saved;
+    updatePlayerBar(saved);
+  }
 }
 
 // ── Navigation ───────────────────────────────────────────────
@@ -608,17 +627,71 @@ function selectParticipant(name) {
   document.getElementById('homeSelector').classList.add('hidden');
   document.getElementById('homeSelected').classList.remove('hidden');
   document.getElementById('selectedNameDisplay').textContent = name;
+  updatePlayerBar(name);
   renderPlayersList();
   showToast('Bienvenido/a, '+name+' 👋');
 }
 
+function updatePlayerBar(name) {
+  const bar = document.getElementById('playerBar');
+  const barName = document.getElementById('playerBarName');
+  if(name) {
+    barName.textContent = name;
+    bar.classList.remove('hidden');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
 function changePlayer() {
   window._currentPlayer = '';
+  _pendingPlayer = '';
   localStorage.removeItem('mw26_player');
   document.getElementById('homeSelector').classList.remove('hidden');
   document.getElementById('homeSelected').classList.add('hidden');
+  updatePlayerBar('');
   renderParticipantsList();
 }
+
+function applyResetCode() {
+  const code = document.getElementById('resetCodeInput').value.trim().toUpperCase();
+  if(!code){ showToast('Ingresá el código', true); return; }
+  const validCode = window._config.resetCode || null;
+  if(!validCode){ showToast('No hay código activo', true); return; }
+  if(code !== validCode.toUpperCase()){ showToast('Código incorrecto ❌', true); return; }
+  changePlayer();
+  showToast('Sesión reseteada ✅');
+}
+
+async function generateResetCode() {
+  const code = Math.random().toString(36).substring(2,7).toUpperCase();
+  await window._fb.set('config/resetCode', code);
+  window._config.resetCode = code;
+  showToast('Código generado: ' + code);
+  renderAdminResetSection();
+}
+
+async function clearResetCode() {
+  await window._fb.set('config/resetCode', null);
+  window._config.resetCode = null;
+  renderAdminResetSection();
+  showToast('Código borrado');
+}
+
+function renderAdminResetSection() {
+  const el = document.getElementById('adminResetCode');
+  if(!el) return;
+  const code = window._config.resetCode;
+  el.innerHTML = code
+    ? `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:4px;color:var(--accent);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 16px;">${code}</div>
+        <div style="font-size:0.75rem;color:var(--muted2);flex:1;">Compartí este código con quien necesite resetear su usuario.</div>
+        <button class="btn btn-red btn-sm" onclick="clearResetCode()">✕ Borrar código</button>
+      </div>`
+    : `<button class="btn btn-secondary" onclick="generateResetCode()" style="margin-top:4px;">🔑 Generar código de reset</button>`;
+}
+
+let _pendingPlayer = '';
 
 function renderParticipantsList() {
   const parts = window._participants || [];
@@ -631,17 +704,26 @@ function renderParticipantsList() {
   }
   noMsg.classList.add('hidden');
   container.innerHTML = parts.map(name => {
-    const p = window._players[name] || {};
-    const gDone = p.groups && Object.keys(p.groups).length===12;
-    const bDone = !!p.champion;
-    return `<div class="player-entry" onclick="selectParticipant('${esc(name)}')">
+    const selected = _pendingPlayer === name;
+    return `<div class="player-entry" onclick="pendingSelect('${esc(name)}')" style="${selected?'border-color:var(--accent2);background:rgba(59,130,246,0.08);':''}">
       <div>
         <div class="player-name">👤 ${name}</div>
-        <div class="player-champ">${gDone?'✅':'⏳'} Grupos &nbsp; ${bDone?'✅':'⏳'} Llaves</div>
       </div>
-      <div style="color:var(--accent2);font-size:1.2rem;">→</div>
+      ${selected ? '<div style="color:var(--accent2);font-size:1.1rem;font-weight:700;">✓</div>' : '<div style="color:var(--muted);font-size:1rem;">○</div>'}
     </div>`;
-  }).join('');
+  }).join('') +
+  (_pendingPlayer ? `<button class="btn btn-primary" onclick="confirmPlayer()" style="margin-top:12px;">¡Soy yo, empezar! →</button>` : '');
+}
+
+function pendingSelect(name) {
+  _pendingPlayer = name;
+  renderParticipantsList();
+}
+
+function confirmPlayer() {
+  if(!_pendingPlayer) return;
+  selectParticipant(_pendingPlayer);
+  _pendingPlayer = '';
 }
 
 function renderPlayersList() {
@@ -1031,7 +1113,7 @@ function renderAdmin(){
   document.getElementById('adminParticipants').classList.toggle('hidden',ap!==2);
   if(ap===0) renderAdminGroups();
   if(ap===1) renderAdminBracket();
-  if(ap===2) renderAdminParticipants();
+  if(ap===2){ renderAdminParticipants(); renderAdminResetSection(); }
   setTimeout(updateLockButtons, 0);
 }
 
@@ -1208,7 +1290,8 @@ async function saveRealBracket(){
 
 // ── Expose to HTML inline handlers ───────────────────────────
 Object.assign(window, {
-  showView, switchPhase, selectParticipant, changePlayer, renderHome,
+  showView, switchPhase, selectParticipant, pendingSelect, confirmPlayer, changePlayer, renderHome,
+  updatePlayerBar, applyResetCode, generateResetCode, clearResetCode, renderAdminResetSection,
   addParticipant, removeParticipant,
   toggleGroupPos, saveGroupPrediction,
   pickWinner, setScore, pickChampion, saveBracketPrediction,
