@@ -704,7 +704,8 @@ function renderParticipantsList() {
   noMsg.classList.add('hidden');
   // Pre-select saved player if none pending
   if(!_pendingPlayer && window._currentPlayer) _pendingPlayer = window._currentPlayer;
-  container.innerHTML = parts.map(name => {
+  const sorted = [...parts].sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
+  container.innerHTML = sorted.map(name => {
     const selected = _pendingPlayer === name;
     const isSaved = window._currentPlayer === name;
     return `<div class="player-entry" onclick="pendingSelect('${esc(name)}')" style="${selected?'border-color:var(--accent2);background:rgba(59,130,246,0.08);':''}">
@@ -1055,7 +1056,7 @@ function renderScores() {
     return;
   }
   const col=window._scoresTab===0?'groups':window._scoresTab===1?'bracket':'total';
-  const scored=Object.keys(window._players||{}).map(name=>({name,...calcScores(name)})).sort((a,b)=>b[col]-a[col]);
+  const scored=Object.keys(window._players||{}).map(name=>({name,...calcScores(name)})).sort((a,b)=>b[col]-a[col]||a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   if(scored.length===0){container.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px;">Nadie cargó su prode todavía</p>';return;}
   container.innerHTML=`<div class="card">`+
     scored.map((p,i)=>{
@@ -1141,7 +1142,8 @@ function renderAdminParticipants(){
     container.innerHTML='<p style="color:var(--muted);font-size:0.82rem;text-align:center;padding:16px 0;">Todavía no hay participantes cargados</p>';
     return;
   }
-  container.innerHTML=parts.map(name=>`
+  const sortedParts = [...parts].sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
+  container.innerHTML=sortedParts.map(name=>`
     <div class="player-entry">
       <div class="player-name">👤 ${name}</div>
       <button class="btn btn-red btn-sm" onclick="removeParticipant('${esc(name)}')">✕ Borrar</button>
