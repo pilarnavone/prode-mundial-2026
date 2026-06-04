@@ -491,7 +491,7 @@ onValue(dbRef('participants'), snap => {
 });
 onValue(dbRef('players'), snap => {
   window._players = snap.val() || {};
-  if (window._currentView === 'home')   renderHome();
+  if (window._currentView === 'home') { if(!window._currentPlayer) renderParticipantsList(); else renderPlayersList(); }
   if (window._currentView === 'scores') renderScores();
 });
 onValue(dbRef('config'), snap => {
@@ -599,6 +599,7 @@ function showView(name) {
     const id = 'tab'+v.charAt(0).toUpperCase()+v.slice(1);
     document.getElementById(id).classList.toggle('active', v===name);
   });
+  if(name==='home')    renderHome();
   if(name==='predict') renderPredict();
   if(name==='scores')  renderScores();
   if(name==='admin')   renderAdmin();
@@ -745,7 +746,7 @@ function renderPlayersList() {
     const bDone = !!p.champion;
     const scores = hasReal ? calcScores(name) : null;
     const isMe = name === window._currentPlayer;
-    return `<div class="player-entry" style="${isMe?'border-color:var(--accent);':''}" onclick="selectParticipant('${esc(name)}')">
+    return `<div class="player-entry" style="${isMe?'border-color:var(--accent);background:rgba(245,158,11,0.06);':''}cursor:default;">
       <div>
         <div class="player-name">${isMe?'★ ':''} ${name}</div>
         <div class="player-champ">
@@ -759,9 +760,10 @@ function renderPlayersList() {
 }
 
 function renderHome() {
-  // Siempre mostramos el selector al cargar la vista home
+  // Siempre mostramos el selector — el usuario confirma cada vez
   document.getElementById('homeSelector').classList.remove('hidden');
   document.getElementById('homeSelected').classList.add('hidden');
+  updatePlayerBar('');
   renderParticipantsList();
 }
 
