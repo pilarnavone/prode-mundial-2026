@@ -705,7 +705,8 @@ function renderParticipantsList() {
   // Pre-select saved player if none pending
   if(!_pendingPlayer && window._currentPlayer) _pendingPlayer = window._currentPlayer;
   const sorted = [...parts].sort((a,b) => a.localeCompare(b, 'es', {sensitivity:'base'}));
-  container.innerHTML = sorted.map(name => {
+  const confirmBtn = _pendingPlayer ? `<button class="btn btn-primary" onclick="confirmPlayer()" style="margin-bottom:12px;">¡Soy yo, empezar! →</button>` : '';
+  container.innerHTML = confirmBtn + sorted.map(name => {
     const selected = _pendingPlayer === name;
     const isSaved = window._currentPlayer === name;
     return `<div class="player-entry" onclick="pendingSelect('${esc(name)}')" style="${selected?'border-color:var(--accent2);background:rgba(59,130,246,0.08);':''}">
@@ -715,8 +716,7 @@ function renderParticipantsList() {
       </div>
       ${selected ? '<div style="color:var(--accent2);font-size:1.1rem;font-weight:700;">✓</div>' : '<div style="color:var(--muted);font-size:1rem;">○</div>'}
     </div>`;
-  }).join('') +
-  (_pendingPlayer ? `<button class="btn btn-primary" onclick="confirmPlayer()" style="margin-top:12px;">¡Soy yo, empezar! →</button>` : '');
+  }).join('');
 }
 
 function pendingSelect(name) {
@@ -736,12 +736,25 @@ function renderPlayersList() {
   const hasReal = Object.keys(realG).length > 0;
   const container = document.getElementById('playersList');
   const parts = window._participants || [];
-  const names = parts.length ? parts : Object.keys(players);
+  const names = [...(parts.length ? parts : Object.keys(players))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
   if(!names.length){
-    container.innerHTML='<p style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px 0;">Todavía nadie cargó su prode</p>';
+    container.innerHTML='<p style="color:var(--muted);font-size:0.82rem;text-align:center;padding:20px 0;">Todavía no hay participantes</p>';
     return;
   }
-  container.innerHTML = names.map(name => {
+  const total = names.length;
+  const doneG = names.filter(n=>{ const p=players[n]||{}; return p.groups&&Object.keys(p.groups).length===12; }).length;
+  const doneB = names.filter(n=>!!(players[n]||{}).champion).length;
+  const summary = `<div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--accent);">${doneG}/${total}</div>
+      <div style="font-size:0.7rem;color:var(--muted2);">Grupos cargados</div>
+    </div>
+    <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:1.5rem;color:var(--accent2);">${doneB}/${total}</div>
+      <div style="font-size:0.7rem;color:var(--muted2);">Llaves cargadas</div>
+    </div>
+  </div>`;
+  container.innerHTML = summary + names.map(name => {
     const p = players[name] || {};
     const gDone = p.groups && Object.keys(p.groups).length===12;
     const bDone = !!p.champion;
