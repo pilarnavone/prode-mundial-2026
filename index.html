@@ -313,6 +313,7 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
       <div style="flex:1;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;color:var(--accent);" id="selectedNameDisplay"></div>
         <div style="font-size:0.75rem;color:var(--muted2);">Jugando el prode</div>
+        <div id="paymentStatus" style="font-size:0.75rem;margin-top:2px;"></div>
       </div>
 
     </div>
@@ -401,6 +402,7 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
       <button class="btn btn-sm" id="admPhBtn2" onclick="setAdminPhase(2)" style="flex:1;">👥 Participantes</button>
       <button class="btn btn-sm" id="admPhBtn0" onclick="setAdminPhase(0)" style="flex:1;">🏟️ Grupos</button>
       <button class="btn btn-sm" id="admPhBtn1" onclick="setAdminPhase(1)" style="flex:1;">⚔️ Llaves</button>
+      <button class="btn btn-sm" id="admPhBtn3" onclick="setAdminPhase(3)" style="flex:1;">💰 Pagos</button>
     </div>
 
     <!-- Participantes -->
@@ -429,6 +431,23 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
       <div class="sec-sub" style="color:var(--red);">Zona peligrosa</div>
       <button class="btn btn-red btn-sm" onclick="clearAllPredictions()">🗑️ Borrar TODOS los prodes (reset)</button>
     </div>
+    <!-- Pagos -->
+    <div id="adminPayments" class="hidden">
+      <div class="sec-sub">Configurá el monto de la apuesta y marcá quién pagó.</div>
+      <div class="card" style="padding:14px;margin-bottom:10px;">
+        <div class="form-field" style="margin-bottom:10px;">
+          <label class="form-label">Monto de la apuesta (igual para todos)</label>
+          <div style="display:flex;gap:8px;">
+            <input class="form-input" type="number" id="betAmountInput" placeholder="Ej: 5000" min="0" style="flex:1;">
+            <button class="btn btn-primary btn-sm" onclick="saveBetAmount()" style="white-space:nowrap;">Guardar</button>
+          </div>
+        </div>
+        <div id="betAmountDisplay" style="font-size:0.78rem;color:var(--muted2);"></div>
+      </div>
+      <div id="paymentsSummary" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;"></div>
+      <div id="adminPaymentsList"></div>
+    </div>
+
     <div id="adminBracket" class="hidden">
       <div class="sec-sub">Cargá los resultados reales de las llaves.</div>
       <div id="adminBracketContainer"></div>
@@ -515,6 +534,15 @@ onValue(dbRef('realBracket'), snap => {
   window._realBracket = snap.val() || { r16:[], qf:[], sf:[], final:[] };
   if (window._currentView === 'scores') renderScores();
 });
+onValue(dbRef('payments'), snap => {
+  window._payments = snap.val() || {};
+  if (window._currentView === 'home' && window._currentPlayer) { updatePaymentStatus(window._currentPlayer); renderPlayersList(); }
+  if (window._currentView === 'admin' && window._adminPhase === 3) renderAdminPayments();
+});
+onValue(dbRef('config/betAmount'), snap => {
+  window._betAmount = snap.val() || 0;
+  if (window._currentView === 'admin' && window._adminPhase === 3) renderAdminPayments();
+});
 
 </script>
 
@@ -535,6 +563,8 @@ window._currentPlayer = '';
 window._adminUnlocked = false;
 window._adminPhase    = 0;
 window._scoresTab     = 2;
+window._payments      = {};
+window._betAmount     = 0;
 
 // ── Static data ──────────────────────────────────────────────
 const GROUPS_DATA = {
@@ -626,9 +656,22 @@ function selectParticipant(name) {
   document.getElementById('homeSelector').classList.add('hidden');
   document.getElementById('homeSelected').classList.remove('hidden');
   document.getElementById('selectedNameDisplay').textContent = name;
+  updatePaymentStatus(name);
   updatePlayerBar(name);
   renderPlayersList();
   showToast('¡Bienvenido/a, '+name+'! 👋');
+}
+
+function updatePaymentStatus(name) {
+  const el=document.getElementById('paymentStatus');
+  if(!el) return;
+  const paid=window._payments[name]||false;
+  const amount=window._betAmount||0;
+  if(paid){
+    el.innerHTML='<span style="color:var(--green);">✅ Apuesta pagada</span>';
+  } else {
+    el.innerHTML='<span style="color:var(--red);">❌ Apuesta pendiente'+(amount?' — $'+amount.toLocaleString('es-AR'):'')+'<br>Transferir a: TIMBRE.PIBE.ORILLA</span>';
+  }
 }
 
 function updatePlayerBar(name) {
@@ -762,7 +805,7 @@ function renderPlayersList() {
     const isMe = name === window._currentPlayer;
     return `<div class="player-entry" style="${isMe?'border-color:var(--accent);background:rgba(245,158,11,0.06);':''}cursor:default;">
       <div>
-        <div class="player-name">${isMe?'★ ':''} ${name}</div>
+        <div class="player-name">${isMe?'★ ':''} ${name} ${(window._payments[name])?'<span style="color:var(--green);font-size:0.75rem;">💲</span>':'<span style="color:var(--red);font-size:0.75rem;">💲</span>'}</div>
         <div class="player-champ">
           ${gDone?'✅':'⏳'} Grupos &nbsp; ${bDone?'✅':'⏳'} Llaves
           ${p.champion?' · 🏆 '+flag(p.champion)+' '+tname(p.champion):''}
@@ -1113,7 +1156,7 @@ function setAdminPhase(n){ window._adminPhase=n; renderAdmin(); }
 function renderAdmin(){
   if(!window._adminUnlocked) return;
   const ap=window._adminPhase;
-  ['admPhBtn0','admPhBtn1','admPhBtn2'].forEach(id=>{
+  ['admPhBtn0','admPhBtn1','admPhBtn2','admPhBtn3'].forEach(id=>{
     const b=document.getElementById(id);
     if(b){b.className='btn btn-sm btn-secondary';b.style.flex='1';}
   });
@@ -1122,9 +1165,11 @@ function renderAdmin(){
   document.getElementById('adminGroups').classList.toggle('hidden',ap!==0);
   document.getElementById('adminBracket').classList.toggle('hidden',ap!==1);
   document.getElementById('adminParticipants').classList.toggle('hidden',ap!==2);
+  document.getElementById('adminPayments').classList.toggle('hidden',ap!==3);
   if(ap===0) renderAdminGroups();
   if(ap===1) renderAdminBracket();
   if(ap===2){ renderAdminParticipants(); renderAdminResetSection(); }
+  if(ap===3) renderAdminPayments();
   setTimeout(updateLockButtons, 0);
 }
 
@@ -1300,10 +1345,56 @@ async function saveRealBracket(){
   showToast('Resultados de llaves guardados ✅');
 }
 
+// ── Payments ─────────────────────────────────────────────────
+async function saveBetAmount(){
+  const input=document.getElementById('betAmountInput');
+  const val=parseInt(input.value);
+  if(!val||val<=0){showToast('Ingresá un monto válido',true);return;}
+  await window._fb.set('config/betAmount', val);
+  window._betAmount=val;
+  showToast('Monto guardado: $'+val.toLocaleString('es-AR')+' ✅');
+  renderAdminPayments();
+}
+
+async function togglePayment(name){
+  const current=window._payments[name]||false;
+  await window._fb.set('payments/'+name, !current);
+  window._payments[name]=!current;
+  renderAdminPayments();
+}
+
+function renderAdminPayments(){
+  const parts=window._participants||[];
+  const amount=window._betAmount||0;
+  // Amount display
+  const display=document.getElementById('betAmountDisplay');
+  if(display) display.textContent=amount?'Monto actual: $'+amount.toLocaleString('es-AR')+' por persona':'Todavía no se configuró el monto.';
+  if(amount){const inp=document.getElementById('betAmountInput');if(inp&&!inp.value)inp.value=amount;}
+  // Summary
+  const paid=parts.filter(n=>window._payments[n]).length;
+  const total=parts.length;
+  const summaryEl=document.getElementById('paymentsSummary');
+  if(summaryEl){
+    summaryEl.innerHTML=`<span style="font-size:0.82rem;color:var(--muted2);">Pagaron: <b style="color:var(--green);">${paid}</b> de <b>${total}</b></span>
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:1.3rem;letter-spacing:1px;color:var(--accent);">$${(paid*amount).toLocaleString('es-AR')}</span>`;
+  }
+  // List
+  const container=document.getElementById('adminPaymentsList');
+  if(!parts.length){container.innerHTML='<p style="color:var(--muted);font-size:0.82rem;text-align:center;padding:16px 0;">Primero agregá participantes desde la pestaña 👥</p>';return;}
+  const sorted=[...parts].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  container.innerHTML=sorted.map(name=>{
+    const hasPaid=window._payments[name]||false;
+    return `<div class="player-entry" onclick="togglePayment('${esc(name)}')" style="cursor:pointer;${hasPaid?'border-color:var(--green);background:rgba(16,185,129,0.06);':''}">
+      <div class="player-name">👤 ${name}</div>
+      <div style="font-size:1.2rem;">${hasPaid?'✅':'❌'}</div>
+    </div>`;
+  }).join('');
+}
+
 // ── Expose to HTML inline handlers ───────────────────────────
 Object.assign(window, {
   showView, switchPhase, selectParticipant, pendingSelect, confirmPlayer, changePlayer, renderHome,
-  updatePlayerBar, applyResetCode, generateResetCode, clearResetCode, renderAdminResetSection,
+  updatePlayerBar, updatePaymentStatus, applyResetCode, generateResetCode, clearResetCode, renderAdminResetSection,
   addParticipant, removeParticipant,
   toggleGroupPos, saveGroupPrediction,
   pickWinner, setScore, pickChampion, saveBracketPrediction,
@@ -1312,6 +1403,7 @@ Object.assign(window, {
   toggleLockGroups, toggleLockBracket, updateLockButtons,
   adminToggleGroup, saveRealGroups, unlockBracket, clearAllPredictions,
   adminPickWinner, saveRealBracket,
+  saveBetAmount, togglePayment, renderAdminPayments,
   get adminPhase(){ return window._adminPhase; },
   set adminPhase(v){ window._adminPhase=v; }
 });
