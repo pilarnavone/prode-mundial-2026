@@ -423,6 +423,7 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
 
     <div id="adminGroups">
       <div class="sec-sub">Cargá los resultados reales de cada grupo.</div>
+      <button class="btn btn-blue" onclick="fetchStandingsFromAPI()" style="margin-bottom:10px;">🔄 ACTUALIZAR DESDE FIFA (automático)</button>
       <div id="adminGroupsContainer"></div>
       <button class="btn btn-green" onclick="saveRealGroups()">☁️ GUARDAR RESULTADOS DE GRUPOS</button>
       <button class="btn btn-blue" onclick="unlockBracket()" style="margin-top:4px;">🔓 HABILITAR ETAPA DE LLAVES</button>
@@ -1345,6 +1346,82 @@ async function saveRealBracket(){
   showToast('Resultados de llaves guardados ✅');
 }
 
+// ── Standings from API ────────────────────────────────────────
+const TEAM_NAME_MAP = {
+  'Mexico':'México 🇲🇽','South Africa':'Sudáfrica 🇿🇦','South Korea':'Corea del Sur 🇰🇷','Czech Republic':'Chequia 🇨🇿',
+  'Canada':'Canadá 🇨🇦','Bosnia & Herzegovina':'Bosnia y Herz. 🇧🇦','Qatar':'Catar 🇶🇦','Switzerland':'Suiza 🇨🇭',
+  'Brazil':'Brasil 🇧🇷','Morocco':'Marruecos 🇲🇦','Haiti':'Haití 🇭🇹','Scotland':'Escocia 🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'USA':'EE.UU. 🇺🇸','Paraguay':'Paraguay 🇵🇾','Australia':'Australia 🇦🇺','Turkey':'Turquía 🇹🇷',
+  'Germany':'Alemania 🇩🇪','Curaçao':'Curazao 🇨🇼','Ivory Coast':'Costa de Marfil 🇨🇮','Ecuador':'Ecuador 🇪🇨',
+  'Netherlands':'Países Bajos 🇳🇱','Japan':'Japón 🇯🇵','Sweden':'Suecia 🇸🇪','Tunisia':'Túnez 🇹🇳',
+  'Belgium':'Bélgica 🇧🇪','Egypt':'Egipto 🇪🇬','Iran':'Irán 🇮🇷','New Zealand':'Nueva Zelanda 🇳🇿',
+  'Spain':'España 🇪🇸','Cape Verde':'Cabo Verde 🇨🇻','Saudi Arabia':'Arabia Saudita 🇸🇦','Uruguay':'Uruguay 🇺🇾',
+  'France':'Francia 🇫🇷','Senegal':'Senegal 🇸🇳','Iraq':'Irak 🇮🇶','Norway':'Noruega 🇳🇴',
+  'Argentina':'Argentina 🇦🇷','Algeria':'Argelia 🇩🇿','Austria':'Austria 🇦🇹','Jordan':'Jordania 🇯🇴',
+  'Portugal':'Portugal 🇵🇹','DR Congo':'R.D. Congo 🇨🇩','Uzbekistan':'Uzbekistán 🇺🇿','Colombia':'Colombia 🇨🇴',
+  'England':'Inglaterra 🏴󠁧󠁢󠁥󠁮󠁧󠁿','Croatia':'Croacia 🇭🇷','Ghana':'Ghana 🇬🇭','Panama':'Panamá 🇵🇦'
+};
+
+const GROUP_LETTER_MAP = {
+  'Group A':'A','Group B':'B','Group C':'C','Group D':'D','Group E':'E','Group F':'F',
+  'Group G':'G','Group H':'H','Group I':'I','Group J':'J','Group K':'K','Group L':'L'
+};
+
+async function fetchStandingsFromAPI() {
+  showLoader('Obteniendo resultados...');
+  if (!Object.keys(realGroupEdit).length) {
+    Object.keys(GROUPS_DATA).forEach(g => { realGroupEdit[g] = {first:-1,second:-1,third:-1}; });
+  }
+  try {
+    const resp = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json');
+    if (!resp.ok) throw new Error('Error al obtener datos');
+    const data = await resp.json();
+    const matches = (data.matches || []).filter(m => m.group && m.score && m.score.ft);
+    if (!matches.length) { hideLoader(); showToast('No hay resultados disponibles todavía', true); return; }
+
+    // Build standings per group
+    const standings = {};
+    matches.forEach(m => {
+      const gl = GROUP_LETTER_MAP[m.group];
+      if (!gl) return;
+      if (!standings[gl]) standings[gl] = {};
+      const t1 = m.team1, t2 = m.team2;
+      [t1, t2].forEach(t => { if (!standings[gl][t]) standings[gl][t] = { pts:0, gf:0, ga:0, gd:0, w:0, d:0, l:0 }; });
+      const [g1, g2] = m.score.ft;
+      standings[gl][t1].gf += g1; standings[gl][t1].ga += g2; standings[gl][t1].gd += (g1 - g2);
+      standings[gl][t2].gf += g2; standings[gl][t2].ga += g1; standings[gl][t2].gd += (g2 - g1);
+      if (g1 > g2) { standings[gl][t1].pts += 3; standings[gl][t1].w++; standings[gl][t2].l++; }
+      else if (g1 < g2) { standings[gl][t2].pts += 3; standings[gl][t2].w++; standings[gl][t1].l++; }
+      else { standings[gl][t1].pts += 1; standings[gl][t2].pts += 1; standings[gl][t1].d++; standings[gl][t2].d++; }
+    });
+
+    // Sort each group and map to GROUPS_DATA indices
+    Object.keys(standings).forEach(gl => {
+      const sorted = Object.entries(standings[gl])
+        .sort(([,a],[,b]) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf)
+        .map(([name]) => name);
+      const teams = GROUPS_DATA[gl];
+      if (!teams || sorted.length < 2) return;
+      const findIdx = (apiName) => {
+        const local = TEAM_NAME_MAP[apiName];
+        return local ? teams.indexOf(local) : -1;
+      };
+      realGroupEdit[gl] = {
+        first: findIdx(sorted[0]),
+        second: findIdx(sorted[1]),
+        third: sorted.length >= 3 ? findIdx(sorted[2]) : -1
+      };
+    });
+
+    hideLoader();
+    renderAdminGroupsHTML();
+    showToast('Resultados actualizados desde openfootball ✅');
+  } catch (e) {
+    hideLoader();
+    showToast('Error al obtener resultados: ' + e.message, true);
+  }
+}
+
 // ── Payments ─────────────────────────────────────────────────
 async function saveBetAmount(){
   const input=document.getElementById('betAmountInput');
@@ -1401,7 +1478,7 @@ Object.assign(window, {
   showScores,
   setAdminPhase, checkPin, lockAdmin, renderAdmin, renderAdminParticipants,
   toggleLockGroups, toggleLockBracket, updateLockButtons,
-  adminToggleGroup, saveRealGroups, unlockBracket, clearAllPredictions,
+  adminToggleGroup, saveRealGroups, unlockBracket, clearAllPredictions, fetchStandingsFromAPI,
   adminPickWinner, saveRealBracket,
   saveBetAmount, togglePayment, renderAdminPayments,
   get adminPhase(){ return window._adminPhase; },
