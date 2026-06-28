@@ -359,8 +359,7 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
     <div class="info-box"><b>2pts</b> equipos + ganador + marcador · <b>1pt</b> equipos + ganador</div>
     <div id="bracketContainer"></div>
     <div class="round-title">🏆 CAMPEÓN MUNDIAL</div>
-    <div style="text-align:center;padding:16px 0 8px;font-size:2.5rem;">🏆</div>
-    <div id="championPicker"></div>
+    <div id="championPicker" style="margin-top:8px;"></div>
     <div id="bracketLockedBanner" class="warn-box hidden" style="text-align:center;">🔒 El prode de llaves está cerrado. Ya no podés modificar tus predicciones.</div>
     <button class="btn btn-green" id="saveBracketBtn" onclick="saveBracketPrediction()" style="margin-top:16px;">☁️ GUARDAR EN LA NUBE</button>
   </div>
@@ -532,7 +531,7 @@ onValue(dbRef('realGroups'), snap => {
   if (window._currentView === 'scores') renderScores();
 });
 onValue(dbRef('realBracket'), snap => {
-  window._realBracket = snap.val() || { r16:[], qf:[], sf:[], final:[] };
+  window._realBracket = snap.val() || { r16:[], qf:[], sf:[], final:[], thefinal:[] };
   if (window._currentView === 'scores') renderScores();
 });
 onValue(dbRef('payments'), snap => {
@@ -553,7 +552,7 @@ window._players       = {};
 window._participants  = [];
 window._config        = {};
 window._realGroups    = {};
-window._realBracket   = { r16:[], qf:[], sf:[], final:[] };
+window._realBracket   = { r16:[], qf:[], sf:[], final:[], thefinal:[] };
 window._bracketUnlocked = false;
 window._groupsLocked   = false;
 window._bracketLocked  = false;
@@ -948,7 +947,7 @@ async function saveGroupPrediction() {
 }
 
 // ── Predict — Bracket ────────────────────────────────────────
-let bracketPred = { r16:[], qf:[], sf:[], final:[], champion:null };
+let bracketPred = { r16:[], qf:[], sf:[], final:[], thefinal:[], champion:null };
 
 function getQualified(g, pos) {
   const rg=window._realGroups;
@@ -963,7 +962,7 @@ function getR16Teams() {
 }
 function getMatchTeams(round,idx,bp) {
   if(round==='r16') return getR16Teams()[idx]||{t1:null,t2:null};
-  const prev={qf:'r16',sf:'qf',final:'sf'}[round];
+  const prev={qf:'r16',sf:'qf',final:'sf',thefinal:'final'}[round];
   return{t1:bp[prev][idx*2]?.winner||null,t2:bp[prev][idx*2+1]?.winner||null};
 }
 
@@ -974,13 +973,14 @@ function renderBracketPrediction() {
     qf: pl.bracketQF?.length ?[...pl.bracketQF] :Array(8).fill(null).map(()=>({winner:null,s1:'',s2:''})),
     sf: pl.bracketSF?.length ?[...pl.bracketSF] :Array(4).fill(null).map(()=>({winner:null,s1:'',s2:''})),
     final:pl.bracketF?.length?[...pl.bracketF]  :Array(2).fill(null).map(()=>({winner:null,s1:'',s2:''})),
+    thefinal:pl.bracketFinal?.length?[...pl.bracketFinal]:Array(1).fill(null).map(()=>({winner:null,s1:'',s2:''})),
     champion:pl.champion||null
   };
   renderBracketHTML();
 }
 
 function renderBracketHTML() {
-  const rounds=[{k:'r16',l:'16AVOS DE FINAL',n:16},{k:'qf',l:'CUARTOS DE FINAL',n:8},{k:'sf',l:'SEMIFINALES',n:4},{k:'final',l:'FINAL',n:2}];
+  const rounds=[{k:'r16',l:'16AVOS DE FINAL',n:16},{k:'qf',l:'OCTAVOS DE FINAL',n:8},{k:'sf',l:'CUARTOS DE FINAL',n:4},{k:'final',l:'SEMIFINALES',n:2},{k:'thefinal',l:'FINAL',n:1}];
   let html='';
   rounds.forEach(({k,l,n})=>{
     html+=`<div class="round-title">${l}</div>`;
@@ -1007,12 +1007,16 @@ function matchCardHTML(round,idx,t1,t2,winner,s1,s2,fn) {
       <span class="match-name ${t2?'':'tbd'}">${t2?tname(t2):'Por definir'}</span>
       ${winner===t2&&t2?'<span class="match-star">★</span>':''}
     </div>
-    ${(t1||t2)&&winner?`<div class="score-row">
-      <span class="score-label">Marcador (opcional, +1pt)</span>
-      <div class="score-inputs">
-        <input class="score-input" type="number" min="0" max="20" value="${s1||''}" placeholder="0" onchange="setScore('${round}',${idx},0,this.value,'${fn}')" onclick="this.select()">
-        <span class="score-sep">-</span>
-        <input class="score-input" type="number" min="0" max="20" value="${s2||''}" placeholder="0" onchange="setScore('${round}',${idx},1,this.value,'${fn}')" onclick="this.select()">
+    ${(t1||t2)&&winner?`<div style="padding:8px 12px 12px;border-top:1px solid var(--border);">
+      <div style="font-size:0.67rem;color:var(--muted2);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:7px;">${fn==='adminPickWinner'?'⚽ Resultado real':'⚽ Marcador (obligatorio para sumar puntos)'}</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:1.1rem;flex-shrink:0;">${flag(t1)}</span>
+        <span style="font-size:0.76rem;color:${winner===t1?'var(--text)':'var(--muted2)'};font-weight:${winner===t1?'600':'400'};flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${tname(t1)}</span>
+        <input class="score-input" type="number" min="0" max="20" value="${s1!==''&&s1!==undefined?s1:''}" placeholder="?" onchange="setScore('${round}',${idx},0,this.value,'${fn}')" onclick="this.select()" style="border-color:${s1!==''&&s1!==undefined?'var(--accent2)':'var(--border)'};">
+        <span class="score-sep">–</span>
+        <input class="score-input" type="number" min="0" max="20" value="${s2!==''&&s2!==undefined?s2:''}" placeholder="?" onchange="setScore('${round}',${idx},1,this.value,'${fn}')" onclick="this.select()" style="border-color:${s2!==''&&s2!==undefined?'var(--accent2)':'var(--border)'};">
+        <span style="font-size:0.76rem;color:${winner===t2?'var(--text)':'var(--muted2)'};font-weight:${winner===t2?'600':'400'};flex:1;text-align:right;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${tname(t2)}</span>
+        <span style="font-size:1.1rem;flex-shrink:0;">${flag(t2)}</span>
       </div>
     </div>`:''}
   </div>`;
@@ -1021,6 +1025,7 @@ function matchCardHTML(round,idx,t1,t2,winner,s1,s2,fn) {
 function pickWinner(round,idx,team) {
   if(!bracketPred[round][idx]) bracketPred[round][idx]={winner:null,s1:'',s2:''};
   bracketPred[round][idx].winner=team;
+  if(round==='thefinal') bracketPred.champion=team;
   cascadeClear(bracketPred,round,idx);
   renderBracketHTML();
 }
@@ -1030,34 +1035,28 @@ function setScore(round,idx,slot,val,fn) {
   if(slot===0)bp[round][idx].s1=val; else bp[round][idx].s2=val;
 }
 function cascadeClear(bp,round,idx) {
-  const order=['r16','qf','sf','final'];
+  const order=['r16','qf','sf','final','thefinal'];
   const ri=order.indexOf(round), nr=order[ri+1];
-  if(!nr) return;
+  if(!nr) { if(round==='thefinal') bp.champion=null; return; }
   const ni=Math.floor(idx/2);
   if(bp[nr]&&bp[nr][ni]){ bp[nr][ni]={winner:null,s1:'',s2:''}; cascadeClear(bp,nr,ni); }
-  if(round==='final') bp.champion=null;
 }
 
 function renderChampionPicker() {
-  const f0=bracketPred.final[0]?.winner, f1=bracketPred.final[1]?.winner;
-  const champ=bracketPred.champion;
-  let html='';
-  if(f0||f1){
-    html=`<div style="display:flex;gap:10px;margin-top:4px;">
-      ${[f0,f1].map(t=>{
-        if(!t) return `<div class="finalist-card" style="opacity:0.4;cursor:default;flex:1;"><span class="finalist-flag">❓</span><div class="finalist-name">Por definir</div></div>`;
-        const ch=champ===t;
-        return `<div class="finalist-card ${ch?'chosen':''}" onclick="pickChampion('${esc(t)}')">
-          <span class="finalist-flag">${flag(t)}</span>
-          <div class="finalist-name">${tname(t)}</div>
-          ${ch?'<div style="color:var(--gold);font-size:0.72rem;margin-top:4px;">★ MI CAMPEÓN</div>':''}
-        </div>`;
-      }).join('<div style="display:flex;align-items:center;color:var(--muted);font-family:\'Bebas Neue\',sans-serif;font-size:1.3rem;padding:0 4px;">VS</div>')}
+  const champ = bracketPred.thefinal[0]?.winner || null;
+  const el = document.getElementById('championPicker');
+  if(!el) return;
+  if(champ) {
+    el.innerHTML = `<div class="champion-box">
+      <div style="text-align:center;">
+        <div style="font-size:2.8rem;">${flag(champ)}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:2px;color:var(--gold);margin-top:6px;">★ ${tname(champ)} ★</div>
+        <div style="font-size:0.72rem;color:var(--muted2);margin-top:4px;">Tu campeón mundial</div>
+      </div>
     </div>`;
   } else {
-    html='<div class="champion-box"><span class="champion-tbd">Completá los partidos para elegir campeón</span></div>';
+    el.innerHTML = `<div class="champion-box"><span class="champion-tbd">Elegí el ganador de la Final para confirmar tu campeón</span></div>`;
   }
-  document.getElementById('championPicker').innerHTML=html;
 }
 function pickChampion(team){ bracketPred.champion=team; renderChampionPicker(); }
 
@@ -1065,13 +1064,23 @@ async function saveBracketPrediction() {
   if(!window._currentPlayer){showToast('Ingresá tu nombre primero',true);return;}
   if(window._bracketLocked){showToast('El prode de llaves está cerrado 🔒',true);return;}
   if(!bracketPred.champion){showToast('Elegí un campeón primero 🏆',true);return;}
+  // Validar que todos los partidos con ganador tengan marcador
+  let faltanMarcadores = 0;
+  ['r16','qf','sf','final','thefinal'].forEach(round => {
+    (bracketPred[round]||[]).forEach(m => {
+      if(m && m.winner && (m.s1===''||m.s1===undefined||m.s1===null||m.s2===''||m.s2===undefined||m.s2===null))
+        faltanMarcadores++;
+    });
+  });
+  if(faltanMarcadores > 0){showToast('Faltán marcadores en '+faltanMarcadores+' partido'+(faltanMarcadores>1?'s':'')+' ⚽',true);return;}
   showLoader('Guardando...');
   const pl=window._players[window._currentPlayer]||{};
   pl.bracketR16=bracketPred.r16;
   pl.bracketQF=bracketPred.qf;
   pl.bracketSF=bracketPred.sf;
   pl.bracketF=bracketPred.final;
-  pl.champion=bracketPred.champion;
+  pl.bracketFinal=bracketPred.thefinal;
+  pl.champion=bracketPred.thefinal[0]?.winner||null;
   await window._fb.set('players/'+window._currentPlayer, pl);
   hideLoader();
   showToast('¡Llaves guardadas! ✅');
@@ -1091,7 +1100,7 @@ function showScores(tab) {
 function calcScores(playerName) {
   const pl=window._players[playerName]||{};
   const realG=window._realGroups||{};
-  const realB=window._realBracket||{r16:[],qf:[],sf:[],final:[]};
+  const realB=window._realBracket||{r16:[],qf:[],sf:[],final:[],thefinal:[]};
   let gpts=0;
   Object.keys(GROUPS_DATA).forEach(g=>{
     if(!realG[g]||!pl.groups||!pl.groups[g]) return;
@@ -1107,7 +1116,8 @@ function calcScores(playerName) {
     {r:realB.r16||[],p:pl.bracketR16||[]},
     {r:realB.qf||[], p:pl.bracketQF||[]},
     {r:realB.sf||[], p:pl.bracketSF||[]},
-    {r:realB.final||[],p:pl.bracketF||[]}
+    {r:realB.final||[],p:pl.bracketF||[]},
+    {r:realB.thefinal||[],p:pl.bracketFinal||[]}
   ];
   rounds.forEach(({r,p})=>{
     (Array.isArray(r)?r:Object.values(r)).forEach((rm,i)=>{
@@ -1312,32 +1322,33 @@ async function clearAllPredictions(){
   showLoader('Borrando datos...');
   await window._fb.set('players', {});
   await window._fb.set('realGroups', {});
-  await window._fb.set('realBracket', {r16:[],qf:[],sf:[],final:[]});
+  await window._fb.set('realBracket', {r16:[],qf:[],sf:[],final:[],thefinal:[]});
   await window._fb.set('config/bracketUnlocked', false);
   hideLoader();
   showToast('Todos los datos borrados ✅');
 }
 
 // Admin bracket
-let realBracketEdit={r16:[],qf:[],sf:[],final:[]};
+let realBracketEdit={r16:[],qf:[],sf:[],final:[],thefinal:[]};
 function renderAdminBracket(){
-  const saved=window._realBracket||{r16:[],qf:[],sf:[],final:[]};
+  const saved=window._realBracket||{r16:[],qf:[],sf:[],final:[],thefinal:[]};
   const toArr=(v,n)=>Array.isArray(v)?[...v]:(v&&typeof v==='object'?Object.values(v):[]).concat(Array(n).fill(null)).slice(0,n);
   realBracketEdit={
     r16:toArr(saved.r16,16).map(x=>x||{t1:null,t2:null,winner:null,s1:'',s2:''}),
     qf: toArr(saved.qf,8).map(x=>x||{t1:null,t2:null,winner:null,s1:'',s2:''}),
     sf: toArr(saved.sf,4).map(x=>x||{t1:null,t2:null,winner:null,s1:'',s2:''}),
     final:toArr(saved.final,2).map(x=>x||{t1:null,t2:null,winner:null,s1:'',s2:''}),
+    thefinal:toArr(saved.thefinal,1).map(x=>x||{t1:null,t2:null,winner:null,s1:'',s2:''}),
   };
   renderAdminBracketHTML();
 }
 function getAdminMatchTeams(round,idx){
   if(round==='r16') return getR16Teams()[idx]||{t1:null,t2:null};
-  const prev={qf:'r16',sf:'qf',final:'sf'}[round];
+  const prev={qf:'r16',sf:'qf',final:'sf',thefinal:'final'}[round];
   return{t1:realBracketEdit[prev][idx*2]?.winner||null,t2:realBracketEdit[prev][idx*2+1]?.winner||null};
 }
 function renderAdminBracketHTML(){
-  const rounds=[{k:'r16',l:'16AVOS',n:16},{k:'qf',l:'CUARTOS',n:8},{k:'sf',l:'SEMIS',n:4},{k:'final',l:'FINAL',n:2}];
+  const rounds=[{k:'r16',l:'16AVOS',n:16},{k:'qf',l:'OCTAVOS',n:8},{k:'sf',l:'CUARTOS',n:4},{k:'final',l:'SEMIS',n:2},{k:'thefinal',l:'FINAL',n:1}];
   let html='';
   rounds.forEach(({k,l,n})=>{
     html+=`<div class="round-title">${l}</div>`;
