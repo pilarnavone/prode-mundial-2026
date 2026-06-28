@@ -1346,6 +1346,7 @@ async function saveRealGroups(){
 async function unlockBracket(){
   showLoader('Habilitando llaves...');
   await window._fb.set('config/bracketUnlocked', true);
+  await window._fb.set('config/bracketLocked', false);
   await window._fb.set('config/phase', 1);
   hideLoader();
   showToast('¡Etapa de Llaves habilitada para todos! 🔓');
