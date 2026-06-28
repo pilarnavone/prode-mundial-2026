@@ -525,6 +525,8 @@ onValue(dbRef('config'), snap => {
     window._currentPhase = cfg.phase;
     updatePhaseBanner();
   }
+  // Si el usuario está en la vista de predicción, re-renderizar para reflejar cambios
+  if (window._currentView === 'predict' && window._currentPlayer) renderPredict();
 });
 onValue(dbRef('realGroups'), snap => {
   window._realGroups = snap.val() || {};
@@ -1344,6 +1346,7 @@ async function saveRealGroups(){
 async function unlockBracket(){
   showLoader('Habilitando llaves...');
   await window._fb.set('config/bracketUnlocked', true);
+  await window._fb.set('config/phase', 1);
   hideLoader();
   showToast('¡Etapa de Llaves habilitada para todos! 🔓');
 }
