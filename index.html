@@ -584,14 +584,30 @@ const GROUPS_DATA = {
 };
 
 const R16_PAIRS = [
-  ['A','first','C','second'], ['C','first','A','second'],
-  ['B','first','D','second'], ['D','first','B','second'],
-  ['E','first','G','second'], ['G','first','E','second'],
-  ['F','first','H','second'], ['H','first','F','second'],
-  ['I','first','K','second'], ['K','first','I','second'],
-  ['J','first','L','second'], ['L','first','J','second'],
-  [null,null,null,null],[null,null,null,null],
-  [null,null,null,null],[null,null,null,null],
+  // QF-A: Alemania/Paraguay vs Francia/Suecia
+  ['E','first','D','third'],   // Alemania vs Paraguay
+  ['I','first','F','third'],   // Francia vs Suecia
+  // QF-B: Sudáfrica/Canadá vs PaísesBajos/Marruecos
+  ['A','second','B','second'], // Sudáfrica vs Canadá
+  ['F','first','C','second'],  // Países Bajos vs Marruecos
+  // QF-C: Brasil/Japón vs CostadeMarfil/Noruega
+  ['C','first','F','second'],  // Brasil vs Japón
+  ['E','second','I','second'], // Costa de Marfil vs Noruega
+  // QF-D: México/Ecuador vs Inglaterra/RDCongo
+  ['A','first','E','third'],   // México vs Ecuador
+  ['L','first','K','third'],   // Inglaterra vs R.D. Congo
+  // QF-E: Portugal/Croacia vs España/Austria
+  ['K','second','L','second'], // Portugal vs Croacia
+  ['H','first','J','second'],  // España vs Austria
+  // QF-F: EE.UU./Bosnia vs Bélgica/Senegal
+  ['D','first','B','third'],   // EE.UU. vs Bosnia
+  ['G','first','I','third'],   // Bélgica vs Senegal
+  // QF-G: Argentina/CaboVerde vs Australia/Egipto
+  ['J','first','H','second'],  // Argentina vs Cabo Verde
+  ['D','second','G','second'], // Australia vs Egipto
+  // QF-H: Suiza/Argelia vs Colombia/Ghana
+  ['B','first','J','third'],   // Suiza vs Argelia
+  ['K','first','L','third'],   // Colombia vs Ghana
 ];
 
 // ── Utils ────────────────────────────────────────────────────
