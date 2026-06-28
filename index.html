@@ -369,9 +369,11 @@ main { max-width: 560px; margin: 0 auto; padding: 14px; }
 <div id="view-scores" class="view hidden">
   <div class="sec-title">TABLA DE POSICIONES</div>
   <div class="sec-sub">Actualizada en tiempo real con Firebase</div>
-  <div class="round-title" style="margin-top:0;">🏟️ FASE DE GRUPOS</div>
-  <div id="scoresGroups"></div>
-  <div class="round-title" style="margin-top:18px;">⚔️ LLAVES ELIMINATORIAS</div>
+  <div style="display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+    <button class="tab" id="scTab1" onclick="switchScoreTab(1)" style="border-bottom:none;border-radius:0;flex:1;padding:10px 8px;">⚔️ Llaves</button>
+    <button class="tab" id="scTab0" onclick="switchScoreTab(0)" style="border-bottom:none;border-radius:0;flex:1;padding:10px 8px;border-left:1px solid var(--border);">🏟️ Grupos</button>
+  </div>
+  <div id="scoresGroups" class="hidden"></div>
   <div id="scoresBracket"></div>
 </div>
 
@@ -580,31 +582,30 @@ const GROUPS_DATA = {
   L: ["Inglaterra 🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croacia 🇭🇷","Ghana 🇬🇭","Panamá 🇵🇦"]
 };
 
+// Orden según bracket oficial FIFA 2026 (bracketmundial2026.com)
+// Semi 1 (M101): cuadro Alemania/Francia/Países Bajos vs cuadro España/Portugal/EEUU
+// Semi 2 (M102): cuadro Brasil/México/Inglaterra vs cuadro Argentina/Suiza/Colombia
 const R16_PAIRS = [
-  // QF-A: Alemania/Paraguay vs Francia/Suecia
-  ['E','first','D','third'],   // Alemania vs Paraguay
-  ['I','first','F','third'],   // Francia vs Suecia
-  // QF-B: Sudáfrica/Canadá vs PaísesBajos/Marruecos
-  ['A','second','B','second'], // Sudáfrica vs Canadá
-  ['F','first','C','second'],  // Países Bajos vs Marruecos
-  // QF-C: Brasil/Japón vs CostadeMarfil/Noruega
-  ['C','first','F','second'],  // Brasil vs Japón
-  ['E','second','I','second'], // Costa de Marfil vs Noruega
-  // QF-D: México/Ecuador vs Inglaterra/RDCongo
-  ['A','first','E','third'],   // México vs Ecuador
-  ['L','first','K','third'],   // Inglaterra vs R.D. Congo
-  // QF-E: Portugal/Croacia vs España/Austria
-  ['K','second','L','second'], // Portugal vs Croacia
-  ['H','first','J','second'],  // España vs Austria
-  // QF-F: EE.UU./Bosnia vs Bélgica/Senegal
-  ['D','first','B','third'],   // EE.UU. vs Bosnia
-  ['G','first','I','third'],   // Bélgica vs Senegal
-  // QF-G: Argentina/CaboVerde vs Australia/Egipto
-  ['J','first','H','second'],  // Argentina vs Cabo Verde
-  ['D','second','G','second'], // Australia vs Egipto
-  // QF-H: Suiza/Argelia vs Colombia/Ghana
-  ['B','first','J','third'],   // Suiza vs Argelia
-  ['K','first','L','third'],   // Colombia vs Ghana
+  // ── Semi 1, lado izquierdo (M97): Alemania-Francia vs Sudáfrica-Países Bajos ──
+  ['E','first','D','third'],   // M74: Alemania vs Paraguay
+  ['I','first','F','third'],   // M77: Francia vs Suecia
+  ['A','second','B','second'], // M73: Sudáfrica vs Canadá
+  ['F','first','C','second'],  // M75: Países Bajos vs Marruecos
+  // ── Semi 1, lado derecho (M98): España-Portugal vs EE.UU.-Bélgica ──
+  ['K','second','L','second'], // M83: Portugal vs Croacia
+  ['H','first','J','second'],  // M84: España vs Austria
+  ['D','first','B','third'],   // M81: EE.UU. vs Bosnia
+  ['G','first','I','third'],   // M82: Bélgica vs Senegal
+  // ── Semi 2, lado izquierdo (M99): Brasil-Costa de Marfil vs México-Inglaterra ──
+  ['C','first','F','second'],  // M76: Brasil vs Japón
+  ['E','second','I','second'], // M78: Costa de Marfil vs Noruega
+  ['A','first','E','third'],   // M79: México vs Ecuador
+  ['L','first','K','third'],   // M80: Inglaterra vs R.D. Congo
+  // ── Semi 2, lado derecho (M100): Argentina-Australia vs Suiza-Colombia ──
+  ['J','first','H','second'],  // M86: Argentina vs Cabo Verde
+  ['D','second','G','second'], // M88: Australia vs Egipto
+  ['B','first','J','third'],   // M85: Suiza vs Argelia
+  ['K','first','L','third'],   // M87: Colombia vs Ghana
 ];
 
 // ── Utils ────────────────────────────────────────────────────
@@ -1085,7 +1086,18 @@ async function saveBracketPrediction() {
 }
 
 // ── Scores ───────────────────────────────────────────────────
-function showScores() { renderScores(); }
+window._scoresTab = 1; // default: llaves
+function switchScoreTab(tab) {
+  window._scoresTab = tab;
+  document.getElementById('scTab0').classList.toggle('active', tab===0);
+  document.getElementById('scTab1').classList.toggle('active', tab===1);
+  document.getElementById('scoresGroups').classList.toggle('hidden', tab!==0);
+  document.getElementById('scoresBracket').classList.toggle('hidden', tab!==1);
+}
+function showScores() {
+  renderScores();
+  switchScoreTab(window._scoresTab);
+}
 
 function calcScores(playerName) {
   const pl=window._players[playerName]||{};
@@ -1515,7 +1527,7 @@ function renderAdminPayments(){
 
 // ── Expose to HTML inline handlers ───────────────────────────
 Object.assign(window, {
-  showView, switchPhase, selectParticipant, pendingSelect, confirmPlayer, changePlayer, renderHome,
+  showView, switchPhase, switchScoreTab, selectParticipant, pendingSelect, confirmPlayer, changePlayer, renderHome,
   updatePlayerBar, updatePaymentStatus, applyResetCode, generateResetCode, clearResetCode, renderAdminResetSection,
   addParticipant, removeParticipant,
   toggleGroupPos, saveGroupPrediction,
