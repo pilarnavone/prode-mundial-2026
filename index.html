@@ -1045,6 +1045,7 @@ function cascadeClear(bp,round,idx) {
 
 function renderChampionPicker() {
   const champ = bracketPred.thefinal[0]?.winner || null;
+  bracketPred.champion = champ; // el ganador de la Final ES el campeón
   const el = document.getElementById('championPicker');
   if(!el) return;
   if(champ) {
